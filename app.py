@@ -7,7 +7,7 @@ app = Flask(__name__)
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
 def extract_bank_details(pdf_file):
-    bank = account_name = bsb = "-"  # Default values
+    bank = account_name = bsb = "-"  
     
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
@@ -21,13 +21,14 @@ def extract_bank_details(pdf_file):
                         account_name = line.split('Account Name', 1)[1].strip() or "-"
                     elif 'BSB' in line:
                         bsb = line.split('BSB', 1)[1].strip() or "-"
-                        return bank, account_name, bsb  # Return once all data is found
+                        return bank, account_name, bsb  
 
-    return bank, account_name, bsb  # Return defaults if not found
+    return bank, account_name, bsb  
 
 def extract_data_from_pdf(pdf_file):
     data = []
     bank, account_name, bsb = extract_bank_details(pdf_file)
+    totals = {"Sub Total": "-", "Tax": "-", "Total": "-", "Balance Due": "-"}
     
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
@@ -35,64 +36,29 @@ def extract_data_from_pdf(pdf_file):
             if text:
                 lines = text.split('\n')
                 for line in lines:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        # Check if last two parts are currency values
-                        if is_currency(parts[-1]) and is_currency(parts[-2]):
-                            description = " ".join(parts[:-2]) or "-"
+                    if "Sub Total" in line:
+                        totals["Sub Total"] = line.split("Sub Total", 1)[1].strip() or "-"
+                    elif "Tax" in line:
+                        totals["Tax"] = line.split("Tax", 1)[1].strip() or "-"
+                    elif "Total" in line:
+                        totals["Total"] = line.split("Total", 1)[1].strip() or "-"
+                    elif "Balance Due" in line:
+                        totals["Balance Due"] = line.split("Balance Due", 1)[1].strip() or "-"
+                    else:
+                        parts = line.split()
+                        if len(parts) >= 4 and is_currency(parts[-1]) and is_currency(parts[-2]):
+                            item_description = " ".join(parts[:-2]) or "-"
+                            qty = "-"  
                             rate = parts[-2] or "-"
                             amount = parts[-1] or "-"
-                            data.append([description, rate, amount, bank, account_name, bsb])
-    
-    return data
-
-def is_currency(s):
-    try:
-        float(s.replace('$', '').replace(',', ''))
-        return True
-    except ValueError:
-        return False
-def extract_bank_details(pdf_file):
-    bank = account_name = bsb = "-"  # Default values
-    
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                lines = text.split('\n')
-                for line in lines:
-                    if 'Bank' in line:
-                        bank = line.split('Bank', 1)[1].strip() or "-"
-                    elif 'Account Name' in line:
-                        account_name = line.split('Account Name', 1)[1].strip() or "-"
-                    elif 'BSB' in line:
-                        bsb = line.split('BSB', 1)[1].strip() or "-"
-                        return bank, account_name, bsb  # Return once all data is found
-
-    return bank, account_name, bsb  # Return defaults if not found
-
-def extract_data_from_pdf(pdf_file):
-    data = []
-    bank, account_name, bsb = extract_bank_details(pdf_file)
-    
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                lines = text.split('\n')
-                for line in lines:
-                    parts = line.split()
-                    if len(parts) >= 4:
-                        if is_currency(parts[-1]) and is_currency(parts[-2]):
-                            item_description = " ".join(parts[:-2]) or "-"
-                            qty = "-" 
-                            rate = parts[-2] or "-"
-                            amount = parts[-1] or "-"                         
+                            
                             if len(parts) >= 5 and parts[-3].isdigit():
                                 qty = parts[-3]
                                 item_description = " ".join(parts[:-3]) or "-"
                             
-                            data.append([item_description, qty, rate, amount, bank, account_name, bsb])
+                            data.append([item_description, qty, rate, amount, bank, account_name, bsb, "-", "-", "-", "-"])
+    
+    data.append(["-", "-", "-", "-", "-", "-", "-", totals["Sub Total"], totals["Tax"], totals["Total"], totals["Balance Due"]])
     
     return data
 
@@ -102,6 +68,7 @@ def is_currency(s):
         return True
     except ValueError:
         return False
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -128,7 +95,7 @@ def download_file():
         if 'table_data' in session:
             table_data = session['table_data']
             output = BytesIO()
-            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB'])
+            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB', 'Sub Total', 'Tax', 'Total', 'Balance Due'])
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)
