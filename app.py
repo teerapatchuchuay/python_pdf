@@ -27,23 +27,25 @@ def extract_bank_details(pdf_file):
 
 def extract_data_from_pdf(pdf_file):
     data = []
-    bank, account_name, bsb = extract_bank_details(pdf_file)
-    totals = {"Sub Total": "-", "Tax": "-", "Total": "-", "Balance Due": "-"}
-    
+    invoice_date = "-"  
+    sub_total = tax = total = balance_due = "-"  
+
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
             text = page.extract_text()
             if text:
                 lines = text.split('\n')
                 for line in lines:
-                    if "Sub Total" in line:
-                        totals["Sub Total"] = line.split("Sub Total", 1)[1].strip() or "-"
+                    if "Invoice Date" in line and invoice_date == "-":
+                        invoice_date = line.split("Invoice Date", 1)[1].strip() or "-"
+                    elif "Sub Total" in line:
+                        sub_total = line.split("Sub Total", 1)[1].strip() or "-"
                     elif "Tax" in line:
-                        totals["Tax"] = line.split("Tax", 1)[1].strip() or "-"
+                        tax = line.split("Tax", 1)[1].strip() or "-"
                     elif "Total" in line:
-                        totals["Total"] = line.split("Total", 1)[1].strip() or "-"
+                        total = line.split("Total", 1)[1].strip() or "-"
                     elif "Balance Due" in line:
-                        totals["Balance Due"] = line.split("Balance Due", 1)[1].strip() or "-"
+                        balance_due = line.split("Balance Due", 1)[1].strip() or "-"
                     else:
                         parts = line.split()
                         if len(parts) >= 4 and is_currency(parts[-1]) and is_currency(parts[-2]):
@@ -56,11 +58,12 @@ def extract_data_from_pdf(pdf_file):
                                 qty = parts[-3]
                                 item_description = " ".join(parts[:-3]) or "-"
                             
-                            data.append([item_description, qty, rate, amount, bank, account_name, bsb, "-", "-", "-", "-"])
+                            data.append([item_description, qty, rate, amount, "-", "-", "-", "-", "-", "-", "-", "-"])
     
-    data.append(["-", "-", "-", "-", "-", "-", "-", totals["Sub Total"], totals["Tax"], totals["Total"], totals["Balance Due"]])
+    data.append(["-", "-", "-", "-", "-", "-", "-", sub_total, tax, total, balance_due, invoice_date])
     
     return data
+
 
 def is_currency(s):
     try:
@@ -95,7 +98,7 @@ def download_file():
         if 'table_data' in session:
             table_data = session['table_data']
             output = BytesIO()
-            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB', 'Sub Total', 'Tax', 'Total', 'Balance Due'])
+            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB', 'Sub Total', 'Tax', 'Total', 'Balance Due', 'Invoice Date'])
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)

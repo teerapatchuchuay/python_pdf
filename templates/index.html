@@ -18,6 +18,7 @@
         }
         h1, h2 {
             color: #343a40;
+            text-align: center;
         }
         .form-group label {
             font-weight: bold;
@@ -54,7 +55,7 @@
 </head>
 <body>
 <div class="container">
-    <h1 class="mt-5" >PDF Data Extractor</h1>
+    <h1 class="">PDF Data Extractor</h1>
     <form action="/upload" method="post" enctype="multipart/form-data" class="mt-3">
         <div class="form-group">
             <label for="file">Upload PDF File</label>
@@ -72,26 +73,30 @@
             <th>Qty</th>
             <th>Rate</th>
             <th>Amount</th>
-            <th>Bank</th>
-            <th>Account Name</th>
-            <th>BSB</th>
             <th>Sub Total</th>
             <th>Tax</th>
             <th>Total</th>
             <th>Balance Due</th>
+            <th>Invoice Date</th>
         </tr>
         </thead>
         <tbody>
         {% for row in table_data %}
         <tr>
-            {% for cell in row %}
-            <td>{{ cell }}</td>
-            {% endfor %}
+            <td>{{ row[0] }}</td>   
+            <td>{{ row[1] }}</td> 
+            <td>{{ row[2] }}</td>  
+            <td>{{ row[3] }}</td>
+            <td>{{ row[7] }}</td>  
+            <td>{{ row[8] }}</td>  
+            <td>{{ row[9] }}</td>  
+            <td>{{ row[10] }}</td>  
+            <td>{{ row[11] }}</td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
-    <a href="/download" class="btn btn-success mt-3">Download Excel File</a>
+    <a href="/download" class="btn btn-success">Download Excel</a>
     {% endif %}
 </div>
 </body>
