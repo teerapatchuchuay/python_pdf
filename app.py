@@ -5,26 +5,7 @@ from io import BytesIO
 
 app = Flask(__name__)
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
-
-def extract_bank_details(pdf_file):
-    bank = account_name = bsb = "-"  
     
-    with pdfplumber.open(pdf_file) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                lines = text.split('\n')
-                for line in lines:
-                    if 'Bank' in line:
-                        bank = line.split('Bank', 1)[1].strip() or "-"
-                    elif 'Account Name' in line:
-                        account_name = line.split('Account Name', 1)[1].strip() or "-"
-                    elif 'BSB' in line:
-                        bsb = line.split('BSB', 1)[1].strip() or "-"
-                        return bank, account_name, bsb  
-
-    return bank, account_name, bsb  
-
 def extract_data_from_pdf(pdf_file):
     data = []
     invoice_date = "-"  
@@ -58,9 +39,9 @@ def extract_data_from_pdf(pdf_file):
                                 qty = parts[-3]
                                 item_description = " ".join(parts[:-3]) or "-"
                             
-                            data.append([item_description, qty, rate, amount, "-", "-", "-", "-", "-", "-", "-", "-"])
+                            data.append([item_description, qty, rate, amount, "-", "-", "-", "-", "-"])
     
-    data.append(["-", "-", "-", "-", "-", "-", "-", sub_total, tax, total, balance_due, invoice_date])
+    data.append(["-", "-", "-", "-",  sub_total, tax, total, balance_due, invoice_date])
     
     return data
 
@@ -98,7 +79,7 @@ def download_file():
         if 'table_data' in session:
             table_data = session['table_data']
             output = BytesIO()
-            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB', 'Sub Total', 'Tax', 'Total', 'Balance Due', 'Invoice Date'])
+            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Sub Total', 'Tax', 'Total', 'Balance Due', 'Invoice Date'])
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)
