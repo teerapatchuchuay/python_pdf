@@ -28,8 +28,7 @@ def extract_bank_details(pdf_file):
 def extract_data_from_pdf(pdf_file):
     data = []
     bank, account_name, bsb = extract_bank_details(pdf_file)
-    info_extracted = False  # Flag to ensure bank details are added only once
-
+    
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
             text = page.extract_text()
@@ -37,19 +36,72 @@ def extract_data_from_pdf(pdf_file):
                 lines = text.split('\n')
                 for line in lines:
                     parts = line.split()
-                    if len(parts) >= 4 and parts[-1].startswith('$') and parts[-3].startswith('$'):
-                        description = " ".join(parts[:-3]) or "-"
-                        rate = parts[-3] or "-"
-                        hours = parts[-2] or "-"
-                        amount = parts[-1] or "-"
-                        if not info_extracted:
-                            data.append([description, rate, hours, amount, bank, account_name, bsb])
-                            info_extracted = True
-                        else:
-                            data.append([description, rate, hours, amount, "-", "-", "-"])  # Add placeholders for subsequent rows
-
+                    if len(parts) >= 4:
+                        # Check if last two parts are currency values
+                        if is_currency(parts[-1]) and is_currency(parts[-2]):
+                            description = " ".join(parts[:-2]) or "-"
+                            rate = parts[-2] or "-"
+                            amount = parts[-1] or "-"
+                            data.append([description, rate, amount, bank, account_name, bsb])
+    
     return data
 
+def is_currency(s):
+    try:
+        float(s.replace('$', '').replace(',', ''))
+        return True
+    except ValueError:
+        return False
+def extract_bank_details(pdf_file):
+    bank = account_name = bsb = "-"  # Default values
+    
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                lines = text.split('\n')
+                for line in lines:
+                    if 'Bank' in line:
+                        bank = line.split('Bank', 1)[1].strip() or "-"
+                    elif 'Account Name' in line:
+                        account_name = line.split('Account Name', 1)[1].strip() or "-"
+                    elif 'BSB' in line:
+                        bsb = line.split('BSB', 1)[1].strip() or "-"
+                        return bank, account_name, bsb  # Return once all data is found
+
+    return bank, account_name, bsb  # Return defaults if not found
+
+def extract_data_from_pdf(pdf_file):
+    data = []
+    bank, account_name, bsb = extract_bank_details(pdf_file)
+    
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            if text:
+                lines = text.split('\n')
+                for line in lines:
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        if is_currency(parts[-1]) and is_currency(parts[-2]):
+                            item_description = " ".join(parts[:-2]) or "-"
+                            qty = "-" 
+                            rate = parts[-2] or "-"
+                            amount = parts[-1] or "-"                         
+                            if len(parts) >= 5 and parts[-3].isdigit():
+                                qty = parts[-3]
+                                item_description = " ".join(parts[:-3]) or "-"
+                            
+                            data.append([item_description, qty, rate, amount, bank, account_name, bsb])
+    
+    return data
+
+def is_currency(s):
+    try:
+        float(s.replace('$', '').replace(',', ''))
+        return True
+    except ValueError:
+        return False
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -76,7 +128,7 @@ def download_file():
         if 'table_data' in session:
             table_data = session['table_data']
             output = BytesIO()
-            df = pd.DataFrame(table_data, columns=['Description', 'Rate', 'Hours', 'Amount', 'Bank', 'Account Name', 'BSB'])
+            df = pd.DataFrame(table_data, columns=['Item & Description', 'Qty', 'Rate', 'Amount', 'Bank', 'Account Name', 'BSB'])
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df.to_excel(writer, index=False)
             output.seek(0)
