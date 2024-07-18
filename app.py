@@ -1,51 +1,41 @@
-from flask import Flask, request, render_template, send_file
-import PyPDF2
+from flask import Flask, request, render_template, send_file, session
+import pdfplumber
 import pandas as pd
-from io import StringIO, BytesIO
+from io import BytesIO
 
 app = Flask(__name__)
+app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
-def convert_pdf_to_excel(pdf_file):
-    reader = PyPDF2.PdfReader(pdf_file)
-    num_pages = len(reader.pages)
-    df_list = []
+def extract_data_from_pdf(pdf_file):
+    data = []
 
-    for page_num in range(num_pages):
-        page = reader.pages[page_num]
-        text = page.extract_text()
-        
-        # พิมพ์ข้อความที่ดึงมาจากแต่ละหน้าเพื่อตรวจสอบ
-        print(f"Text from page {page_num + 1}:\n{text}\n{'-'*40}")
-
-        if text.strip():
-            try:
-                # แยกข้อความตามบรรทัด
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            # Extract text lines
+            text = page.extract_text()
+            if text:
                 lines = text.split('\n')
-                rows = []
                 for line in lines:
-                    # แยกแต่ละบรรทัดตามช่องว่าง (space)
-                    row = line.split()
-                    rows.append(row)
-                
-                # สร้าง DataFrame จากรายการที่จัดเรียง
-                data = pd.DataFrame(rows)
-                print(f"DataFrame from page {page_num + 1}:\n{data}\n{'-'*40}")
-                df_list.append(data)
-            except Exception as e:
-                print(f"Error processing page {page_num}: {e}")
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        description = " ".join(parts[:-3])
+                        rate = parts[-3]
+                        hours = parts[-2]
+                        amount = parts[-1]
+                        data.append([description, rate, hours, amount])
 
-    # ตรวจสอบว่า df_list มี DataFrame หรือไม่
-    if df_list:
-        df = pd.concat(df_list, ignore_index=True)
-        print(f"Combined DataFrame:\n{df}\n{'-'*40}")
-    else:
-        df = pd.DataFrame()
+            # Extract tables
+            tables = page.extract_tables()
+            for table in tables:
+                for row in table:
+                    if len(row) >= 4:
+                        description = row[0]
+                        rate = row[-3]
+                        hours = row[-2]
+                        amount = row[-1]
+                        data.append([description, rate, hours, amount])
 
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False)
-    output.seek(0)
-    return output
+    return data
 
 @app.route('/')
 def index():
@@ -60,12 +50,28 @@ def upload_file():
         return 'No selected file', 400
     if file and file.filename.endswith('.pdf'):
         try:
-            excel_file = convert_pdf_to_excel(file)
-            return send_file(excel_file, as_attachment=True, download_name='output.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            session['table_data'] = extract_data_from_pdf(file)
+            return render_template('index.html', table_data=session['table_data'])
         except Exception as e:
             return f'Error processing file: {e}', 500
     else:
         return 'Invalid file format', 400
+
+@app.route('/download')
+def download_file():
+    try:
+        if 'table_data' in session:
+            table_data = session['table_data']
+            output = BytesIO()
+            df = pd.DataFrame(table_data, columns=['Description', 'Rate', 'Hours', 'Amount'])
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, as_attachment=True, download_name='output.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        else:
+            return 'No data to download', 404
+    except Exception as e:
+        return f'Error creating Excel file: {e}', 500
 
 if __name__ == '__main__':
     app.run(debug=True)

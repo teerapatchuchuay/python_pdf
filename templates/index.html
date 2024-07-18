@@ -1,14 +1,41 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>PDF to Excel Converter</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload PDF and Extract Data</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-    <h1>Upload PDF to Convert to Excel</h1>
+<div class="container mt-5">
+    <h2 class="mb-4">Upload PDF and Extract Data</h2>
     <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept="application/pdf">
-        <input type="submit" value="Upload">
+        <div class="form-group">
+            <input type="file" name="file" class="form-control-file" accept=".pdf" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload</button>
     </form>
+
+    {% if table_data %}
+    <div class="mt-5">
+        <h3>Extracted Data</h3>
+        <table class="table table-bordered">
+            <thead>
+            </thead>
+            <tbody>
+                {% for row in table_data %}
+                <tr>
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[1] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td>{{ row[3] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <a href="/download" class="btn btn-success">Download as Excel</a>
+    </div>
+    {% endif %}
+</div>
 </body>
 </html>
